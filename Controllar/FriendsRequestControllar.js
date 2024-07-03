@@ -1,4 +1,5 @@
 const FriendRequest = require("../Model/FreindRequestSchema");
+const { userSocketMap } = require("../index");
 
 // send friend request
 exports.friendRequest = async (req, res) => {
@@ -22,6 +23,25 @@ exports.friendRequest = async (req, res) => {
       receiver: receiverId,
     });
     newRequest.save();
+
+    // // Emit event for new friend request
+    // // console.log("req.io=====================>", req.io);
+    // req.io.emit("newFriendRequest", {
+    //   senderId: senderID,
+    //   receiverId: receiverId,
+    //   requestId: newRequest._id,
+    // });
+
+    const receiverSocketIds = req.userSocketMap[receiverId];
+    if (receiverSocketIds) {
+      receiverSocketIds.forEach((socketId) => {
+        req.io.to(socketId).emit("newFriendRequest", {
+          senderId: senderID,
+          receiverId: receiverId,
+          requestId: newRequest._id,
+        });
+      });
+    }
     return res.status(200).json({
       status: "success",
       messgage: "friend request send",

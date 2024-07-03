@@ -125,20 +125,21 @@ exports.signUp = async (req, res) => {
     const newUser = await User.create(req.body);
     await newUser.save();
     console.log("new user =========================>", newUser);
-    // create jwt token
-    const token = jwt.sign(
-      { id: newUser._id, phoneNumber: newUser.phoneNumber },
-      process.env.SCRATEKEY,
-      {
-        expiresIn: "365d",
-      }
-    );
+    // // create jwt token
+    // const token = jwt.sign(
+    //   { id: newUser._id, phoneNumber: newUser.phoneNumber },
+    //   process.env.SCRATEKEY,
+    //   {
+    //     expiresIn: "365d",
+    //   }
+    // );
+
     return res.status(200).json({
       status: "success",
-      message: "created and  login successfully",
+      message: "created successfully",
       data: {
         user: newUser,
-        token: token,
+        // token: token,
       },
     });
   } catch (err) {
@@ -150,75 +151,139 @@ exports.signUp = async (req, res) => {
   }
 };
 
-// //login user
-// exports.login = async (req, res) => {
-//   console.log("login route hit");
+//louput
+// exports.logout = async (req, res) => {
 //   try {
-//     const { phoneNumber, password } = req.body;
-//     console.log("phoneNumber: " + phoneNumber + " password: " + password);
-//     const user = await User.findOne({ phoneNumber: phoneNumber });
+//     const userId = req.user.id;
+//     const user = await User.findById(userId);
 //     if (!user) {
-//       return res.status(404).json({
-//         status: "failed",
-//         message: "User not found",
-//       });
+//       return res
+//         .status(404)
+//         .json({ status: "failed", message: "User not found" });
 //     }
-//     console.log("user =======>", user.password);
-//     const token = jwt.sign(
-//       { id: user._id, phoneNumber: user.phoneNumber },
-//       process.env.SCRATEKEY,
-//       {
-//         expiresIn: "1h",
-//       }
-//     );
-//     return res.status(200).json({
-//       status: "success",
-//       message: "login successfully",
-//       data: {
-//         user: user,
-//         token: token,
-//       },
-//     });
-//     // bcrypt.compare(password, user.password, (err, result) => {
-//     //   if (err) {
-//     //     console.log("error=====>", err);
-//     //     return res.status(500).json({
-//     //       status: "failed",
-//     //       message: err.message,
-//     //     });
-//     //   }
-//     //   if (result) {
-//     //     console.log("result ====>", result);
-//     //     const token = jwt.sign(
-//     //       { id: user._id, phoneNumber: user.phoneNumber },
-//     //       process.env.SCRATEKEY,
-//     //       {
-//     //         expiresIn: "1h",
-//     //       }
-//     //     );
-//     //     return res.status(200).json({
-//     //       status: "success",
-//     //       message: "login successfully",
-//     //       data: {
-//     //         user: user,
-//     //         token: token,
-//     //       },
-//     //     });
-//     //   } else {
-//     //     return res.status(404).json({
-//     //       status: "failed",
-//     //       message: "passwords do not match",
-//     //     });
-//     //   }
-//     // });
-//     // res.send("this endpoint runs successfully");
+//     user.token = null;
+//     await user.save();
+//     return res
+//       .status(200)
+//       .json({ status: "success", message: "User logged out successfully" });
 //   } catch (err) {
-//     return res.status(500).json({
-//       status: "failed",
-//       message: err,
-//     });
+//     return res.status(500).json({ status: "failed", message: err.message });
 //   }
 // };
+
+// //login user
+exports.login = async (req, res) => {
+  try {
+    console.log("login route hit", req);
+    const { phoneNumber } = req.body;
+    console.log("phoneNumber: " + phoneNumber);
+    const user = await User.findOne({ phoneNumber: phoneNumber });
+    if (!user) {
+      return res.status(404).json({
+        status: "failed",
+        message: "User not found",
+      });
+    }
+    console.log("user ========>", user);
+    const otpExists = await OTPSchema.findOne({ identity: phoneNumber });
+    console.log("exists otp ======>", otpExists);
+    if (otpExists) {
+      await OTPSchema.findByIdAndDelete(otpExists._id);
+    }
+    const otp = GenerateOTP();
+    const newOTP = new OTPSchema({
+      identity: phoneNumber,
+      otp: otp,
+    });
+    console.log("newOTP====>", newOTP);
+    await newOTP.save();
+
+    //  twilio confgeration,
+    const { accountSid, authToken, fromPhone } = require("../Config/twilio");
+    const client = new twilio(accountSid, authToken);
+    await client.messages.create({
+      body: `Your OTP is ${newOTP.otp}`,
+      from: fromPhone,
+      to: phoneNumber,
+    });
+    return res.status(200).json({
+      status: "success",
+      message: `OTP has been sent to this phone number ${phoneNumber} successfully`,
+      otp: newOTP.otp,
+    });
+    // const token = jwt.sign(
+    //   { id: user._id, phoneNumber: user.phoneNumber },
+    //   process.env.SCRATEKEY,
+    //   {
+    //     expiresIn: "2h",
+    //   }
+    // );
+    // return res.status(200).json({
+    //   status: "success",
+    //   message: "login successfully",
+    //   data: {
+    //     user: user,
+    //     // token: token,
+    //   },
+    // });
+  } catch (err) {
+    console.log("error", err);
+    return res.status(500).json({
+      status: "failed",
+      message: err,
+    });
+  }
+};
+
+//OTP verification for login
+exports.verifyOTPLogin = async (req, res) => {
+  console.log("verifyOTP route hits");
+  try {
+    const { otp, phoneNumber, latitude, longitude } = req.body;
+    const otpExists = await OTPSchema.findOne({ otp });
+    console.log("otp exists =============>", otpExists);
+    if (!otpExists) {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid otp code",
+      });
+    }
+    const user = await User.findOne({
+      phoneNumber: otpExists.identity,
+    });
+    console.log("user ===============>", user);
+    if (!user) {
+      return res.status(404).json({
+        status: "failed",
+        message: "User not registered with this phone number",
+      });
+    }
+    //loaction
+    user.location = {
+      latitude: latitude,
+      longitude: longitude,
+      lastUpdated: Date.now(),
+    };
+    await user.save();
+    const token = jwt.sign({ id: user._id }, process.env.SCRATEKEY, {
+      expiresIn: "2h",
+    });
+    console.log("token ===============>", token);
+    await OTPSchema.findByIdAndDelete(otpExists._id);
+    return res.status(201).json({
+      status: "success",
+      message: "OTP veirfied ",
+      token: token,
+      user: user,
+    });
+  } catch (err) {
+    console.log("error====>", err);
+    return res.status(500).json({
+      status: "failed",
+      message: err,
+    });
+  }
+};
 
 //editProfile
 exports.editProfile = async (req, res) => {
@@ -312,28 +377,40 @@ exports.getAllFriends = async (req, res) => {
 };
 
 // //friends
-// exports.friends = async (req, res) => {
-//   try {
-//     const userId = req.params.id;
-//     const user = await User.findById(userId);
-//     if (!user) {
-//       return res
-//         .status(404)
-//         .json({ status: "failed", message: "User not found" });
-//     }
-//     const friends = user.friends;
-//     return res.status(200).json({
-//       status: "success",
-//       data: friends,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     return res.status(500).json({
-//       status: "failed",
-//       message: err.message,
-//     });
-//   }
-// };
+exports.friends = async (req, res) => {
+  try {
+    console.log("user login =====>", req.user);
+    const userId = req.params.id;
+    console.log("id jo param se aa tahi hai ", req.params.id);
+    console.log("login user id ========>", req.user);
+    if (req.user.id !== userId) {
+      return res.status(403).json({
+        status: "failed",
+        message: "You do not have permission to access this resource",
+      });
+    }
+
+    const user = await User.findById(userId).populate("friends");
+    if (!user) {
+      return res
+        .status(404)
+        .json({ status: "failed", message: "User not found" });
+    }
+    const friends = user.friends;
+    return res.status(200).json({
+      status: "success",
+      data: {
+        friends: friends,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      status: "failed",
+      message: err.message,
+    });
+  }
+};
 
 // //verify otp
 // exports.verfiyOTP = async (req, res, next) => {

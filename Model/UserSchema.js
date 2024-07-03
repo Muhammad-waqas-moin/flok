@@ -32,7 +32,37 @@ const UserSchema = mongoose.Schema({
     },
   ],
   otp: { type: String, required: false },
-  token: { type: String, required: false },
+  location: {
+    latitude: { type: Number },
+    longitude: {
+      type: Number,
+    },
+    lastUpdated: { type: Date, default: Date.now },
+  },
+  pokedBy: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+  hasPoked: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+  sentFriendRequests: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+  receivedFriendRequests: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
 });
 
 module.exports = mongoose.model("User", UserSchema);
