@@ -5,6 +5,11 @@ const twilio = require("twilio");
 const jwt = require("jsonwebtoken");
 // const bcrypt = require("bcrypt");
 const upload = require("../Middlewares/multer");
+// const { accountSid, authToken, fromPhone } = require("../Config/twilio");
+const accountSid = process.env.TWILIO_ACCOUNT_SID;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const fromPhone = process.env.TWILIO_PHONE_NUMBER;
+const client = require("twilio")(accountSid, authToken);
 
 // generate OTP
 const GenerateOTP = () => {
@@ -47,14 +52,14 @@ exports.requestAccount = async (req, res) => {
     await newOTP.save();
 
     //  twilio confgeration,
-    const { accountSid, authToken, fromPhone } = require("../Config/twilio");
-    const client = new twilio(accountSid, authToken);
+    // const { accountSid, authToken, fromPhone } = require("../Config/twilio");
+    // const client = new twilio(accountSid, authToken);
 
-    await client.messages.create({
-      body: `Your OTP is ${newOTP.otp}`,
-      from: fromPhone,
-      to: phoneNumber,
-    });
+    // await client.messages.create({
+    //   body: `Your OTP is ${newOTP.otp}`,
+    //   from: fromPhone,
+    //   to: phoneNumber,
+    // });
 
     return res.status(200).json({
       status: "success",
@@ -198,14 +203,14 @@ exports.login = async (req, res) => {
     console.log("newOTP====>", newOTP);
     await newOTP.save();
 
-    //  twilio confgeration,
-    const { accountSid, authToken, fromPhone } = require("../Config/twilio");
-    const client = new twilio(accountSid, authToken);
-    await client.messages.create({
-      body: `Your OTP is ${newOTP.otp}`,
-      from: fromPhone,
-      to: phoneNumber,
-    });
+    // //  twilio confgeration,
+    // const { accountSid, authToken, fromPhone } = require("../Config/twilio");
+    // const client = new twilio(accountSid, authToken);
+    // await client.messages.create({
+    //   body: `Your OTP is ${newOTP.otp}`,
+    //   from: fromPhone,
+    //   to: phoneNumber,
+    // });
     return res.status(200).json({
       status: "success",
       message: `OTP has been sent to this phone number ${phoneNumber} successfully`,
