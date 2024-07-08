@@ -22,7 +22,7 @@ const UserSchema = mongoose.Schema({
   friends: [
     {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Reference the same User model
+      ref: "User",
     },
   ],
   contacts: [

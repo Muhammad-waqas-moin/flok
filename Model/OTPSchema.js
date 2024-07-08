@@ -14,7 +14,7 @@ const OTPSchema = mongoose.Schema({
   expiresAt: {
     type: Date,
     default: Date.now,
-    expires: 60,
+    expires: 180,
   },
 });
 module.exports = mongoose.model("OTPSchema", OTPSchema);

@@ -20,6 +20,7 @@ const io = new Server(server, {
 // Middleware to authenticate user using Socket.IO
 io.use((socket, next) => {
   const token = socket.handshake.query.token;
+  console.log("%%%%%====>", socket.handshake);
   if (token) {
     jwt.verify(token, process.env.SCRATEKEY, (err, decoded) => {
       if (err) {
@@ -40,10 +41,8 @@ const userSocketMap = {};
 io.on("connection", (socket) => {
   console.log(`A new connection is established with ${socket.id}`);
   const userId = socket.user.id;
-
   //join room
   socket.join(userId);
-
   // Initialize the array for the user if it doesn't exist
   if (!userSocketMap[userId]) {
     userSocketMap[userId] = [];
@@ -51,7 +50,6 @@ io.on("connection", (socket) => {
   // Add the new socket ID to the user's array
   userSocketMap[userId].push(socket.id);
   console.log(`User ${userId} is mapped to socket ${socket.id}`);
-
   //event for  update location
   socket.on("updateLocation", async ({ latitude, longitude }) => {
     try {

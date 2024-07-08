@@ -1,15 +1,18 @@
 const User = require("../Model/UserSchema");
 const OTPSchema = require("../Model/OTPSchema");
 const randomstring = require("randomstring");
-const twilio = require("twilio");
+const mongoose = require("mongoose");
+// const twilio = require("twilio");
 const jwt = require("jsonwebtoken");
 // const bcrypt = require("bcrypt");
-const upload = require("../Middlewares/multer");
+// const upload = require("../Middlewares/multer");
+const fs = require("fs").promises;
+const path = require("path");
 // const { accountSid, authToken, fromPhone } = require("../Config/twilio");
-const accountSid = process.env.TWILIO_ACCOUNT_SID;
-const authToken = process.env.TWILIO_AUTH_TOKEN;
-const fromPhone = process.env.TWILIO_PHONE_NUMBER;
-const client = require("twilio")(accountSid, authToken);
+// const accountSid = process.env.TWILIO_ACCOUNT_SID;
+// const authToken = process.env.TWILIO_AUTH_TOKEN;
+// const fromPhone = process.env.TWILIO_PHONE_NUMBER;
+// const client = require("twilio")(accountSid, authToken);
 
 // generate OTP
 const GenerateOTP = () => {
@@ -24,7 +27,14 @@ const GenerateOTP = () => {
 exports.requestAccount = async (req, res) => {
   try {
     console.log("request account hits");
-    const { phoneNumber } = req.body;
+    let { phoneNumber } = req.body;
+    if (!phoneNumber) {
+      return res.status(400).send({
+        status: "failed",
+        message: "phone number is missing",
+      });
+    }
+
     // Format the phone number for Twilio
     if (!phoneNumber.startsWith("+")) {
       phoneNumber = `+92${phoneNumber.slice(1)}`;
@@ -114,11 +124,10 @@ exports.verifyOTP = async (req, res) => {
 exports.signUp = async (req, res) => {
   try {
     const { fullname, phoneNumber } = req.body;
-    const isUserRegistered = await User.findOne({
+    const isUser = await User.findOne({
       phoneNumber: phoneNumber,
     });
-    console.log("user ===============>", isUserRegistered);
-    if (isUserRegistered) {
+    if (isUser) {
       return res.status(404).json({
         status: "failed",
         message: "User already registered with this phone number",
@@ -179,9 +188,7 @@ exports.signUp = async (req, res) => {
 // //login user
 exports.login = async (req, res) => {
   try {
-    console.log("login route hit", req);
     const { phoneNumber } = req.body;
-    console.log("phoneNumber: " + phoneNumber);
     const user = await User.findOne({ phoneNumber: phoneNumber });
     if (!user) {
       return res.status(404).json({
@@ -189,9 +196,7 @@ exports.login = async (req, res) => {
         message: "User not found",
       });
     }
-    console.log("user ========>", user);
     const otpExists = await OTPSchema.findOne({ identity: phoneNumber });
-    console.log("exists otp ======>", otpExists);
     if (otpExists) {
       await OTPSchema.findByIdAndDelete(otpExists._id);
     }
@@ -200,7 +205,6 @@ exports.login = async (req, res) => {
       identity: phoneNumber,
       otp: otp,
     });
-    console.log("newOTP====>", newOTP);
     await newOTP.save();
 
     // //  twilio confgeration,
@@ -216,47 +220,29 @@ exports.login = async (req, res) => {
       message: `OTP has been sent to this phone number ${phoneNumber} successfully`,
       otp: newOTP.otp,
     });
-    // const token = jwt.sign(
-    //   { id: user._id, phoneNumber: user.phoneNumber },
-    //   process.env.SCRATEKEY,
-    //   {
-    //     expiresIn: "2h",
-    //   }
-    // );
-    // return res.status(200).json({
-    //   status: "success",
-    //   message: "login successfully",
-    //   data: {
-    //     user: user,
-    //     // token: token,
-    //   },
-    // });
   } catch (err) {
     console.log("error", err);
     return res.status(500).json({
       status: "failed",
-      message: err,
+      message: err.message,
     });
   }
 };
 
 //OTP verification for login
 exports.verifyOTPLogin = async (req, res) => {
-  console.log("verifyOTP route hits");
   try {
     const { otp, phoneNumber, latitude, longitude } = req.body;
-    const otpExists = await OTPSchema.findOne({ otp });
-    console.log("otp exists =============>", otpExists);
+    const otpExists = await OTPSchema.findOne({ otp, identity: phoneNumber });
     if (!otpExists) {
       return res.status(404).json({
         success: false,
-        message: "Invalid otp code",
+        message: "Invalid OTP or phone number",
       });
     }
     const user = await User.findOne({
       phoneNumber: otpExists.identity,
     });
-    console.log("user ===============>", user);
     if (!user) {
       return res.status(404).json({
         status: "failed",
@@ -292,19 +278,40 @@ exports.verifyOTPLogin = async (req, res) => {
 
 //editProfile
 exports.editProfile = async (req, res) => {
-  console.log("this route hits?");
   try {
-    const userID = req.user.id;
-    const { fullname, phoneNumber } = req.body;
-    const profileImage = req.file ? req.file.filename : undefined;
-    const updateData = {};
-    if (fullname) updateData.fullname = fullname;
-    if (phoneNumber) updateData.phoneNumber = phoneNumber;
-    if (profileImage) updateData.profileImage = profileImage;
-    const updatedUser = await User.findByIdAndUpdate(userID, updateData, {
-      new: true,
-    });
-    console.log("Updated User:", updatedUser);
+    const userId = req.user.id;
+    const { fullname } = req.body;
+    if (!fullname) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Fullname  is missing",
+      });
+    }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: "failed",
+        message: "User does not exist",
+      });
+    }
+    if (userId !== req.user.id) {
+      return res.status(401).json({
+        status: "error",
+        message: "Unauthorized access to update profile",
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { fullname },
+      { new: true }
+    );
+    if (!updatedUser) {
+      return res.status(404).json({
+        status: "error",
+        message: "User not found",
+      });
+    }
     return res.status(200).json({
       status: "success",
       data: updatedUser,
@@ -318,12 +325,63 @@ exports.editProfile = async (req, res) => {
   }
 };
 
+// update profile image
+exports.updateUserProfileImage = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: "failed",
+        message: "User not found",
+      });
+    }
+    if (!req.file) {
+      return res.status(400).json({
+        status: "failed",
+        message: "No image file uploaded",
+      });
+    }
+    if (userId !== req.user.id) {
+      return res.status(401).json({
+        status: "error",
+        message: "Unauthorized access to update profile image",
+      });
+    }
+    const previousImagePath = user.profileImage;
+    if (previousImagePath) {
+      const fullPath = path.join(__dirname, "..", previousImagePath);
+      try {
+        await fs.access(fullPath); // Check if file exist
+        await fs.unlink(fullPath); // Delete the file
+        console.log("Previous profile image deleted:", fullPath);
+      } catch (error) {
+        console.error("Error deleting previous profile image:", error);
+      }
+    }
+    console.log("path=======>", path.normalize(req.file.path));
+    const normalizedImagePath = req.file.path.replace(/\\/g, "/");
+    user.profileImage = normalizedImagePath;
+    const updatedUser = await user.save();
+    console.log("updatedUser======>", updatedUser);
+
+    return res.status(200).json({
+      status: "success",
+      data: updatedUser,
+    });
+  } catch (error) {
+    console.error("Error updating user profile image:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Failed to update user profile image",
+    });
+  }
+};
+
 // add contact
 exports.addContacts = async (req, res) => {
   try {
     const { contacts } = req.body;
-    console.log("contacts========>", contacts);
-    console.log("user ====>", req.user);
     const user = await User.findOne({ _id: req.user.id });
     console.log("user ===>", user);
     if (!user) {
@@ -354,8 +412,8 @@ exports.addContacts = async (req, res) => {
 //get All friends on flok
 exports.getAllFriends = async (req, res) => {
   try {
-    console.log("user ========>", req.user.id);
-    const user = await User.findOne({ _id: req.user.id });
+    const userId = req.user.id;
+    const user = await User.findById(userId);
     console.log("user ===>", user);
     if (!user) {
       return res.status(404).json({
@@ -381,41 +439,100 @@ exports.getAllFriends = async (req, res) => {
   }
 };
 
-// //friends
-exports.friends = async (req, res) => {
+// Get a single friend by ID
+exports.getFriend = async (req, res) => {
   try {
-    console.log("user login =====>", req.user);
-    const userId = req.params.id;
-    console.log("id jo param se aa tahi hai ", req.params.id);
-    console.log("login user id ========>", req.user);
-    if (req.user.id !== userId) {
-      return res.status(403).json({
+    const userId = req.user.id;
+    const friendId = req.params.id;
+    if (!friendId) {
+      return res.status(400).json({
         status: "failed",
-        message: "You do not have permission to access this resource",
+        message: "Friend ID is required",
+      });
+    }
+    if (!mongoose.Types.ObjectId.isValid(friendId)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid Friend ID",
+      });
+    }
+    if (userId === friendId) {
+      return res.status(400).json({
+        status: "failed",
+        message: "You cannot add yourself as a friend",
       });
     }
 
     const user = await User.findById(userId).populate("friends");
+
     if (!user) {
-      return res
-        .status(404)
-        .json({ status: "failed", message: "User not found" });
+      console.error(`User not found with ID: ${userId}`);
+      return res.status(404).json({
+        status: "failed",
+        message: "User not found",
+      });
     }
-    const friends = user.friends;
+
+    // Find the specific friend from the user's friends list
+    const friend = user.friends.find((friend) => friend.id === friendId);
+
+    if (!friend) {
+      console.error(`Friend not found with ID: ${friendId}`);
+      return res.status(404).json({
+        status: "failed",
+        message: "Friend not found",
+      });
+    }
     return res.status(200).json({
       status: "success",
       data: {
-        friends: friends,
+        friend: friend,
       },
     });
   } catch (err) {
-    console.error(err);
+    console.error(`Error fetching friend: ${err.message}`);
     return res.status(500).json({
       status: "failed",
-      message: err.message,
+      message: "An error occurred while fetching the friend",
     });
   }
 };
+
+// // //friends
+// exports.friends = async (req, res) => {
+//   try {
+//     console.log("user login =====>", req.user);
+//     const userId = req.params.id;
+//     console.log("id jo param se aa tahi hai ", req.params.id);
+//     console.log("login user id ========>", req.user);
+//     if (req.user.id !== userId) {
+//       return res.status(403).json({
+//         status: "failed",
+//         message: "You do not have permission to access this resource",
+//       });
+//     }
+
+//     const user = await User.findById(userId).populate("friends");
+//     if (!user) {
+//       return res
+//         .status(404)
+//         .json({ status: "failed", message: "User not found" });
+//     }
+//     const friends = user.friends;
+//     return res.status(200).json({
+//       status: "success",
+//       data: {
+//         friends: friends,
+//       },
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     return res.status(500).json({
+//       status: "failed",
+//       message: err.message,
+//     });
+//   }
+// };
 
 // //verify otp
 // exports.verfiyOTP = async (req, res, next) => {

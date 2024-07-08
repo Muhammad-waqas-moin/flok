@@ -101,7 +101,7 @@
       const socket = io({
         query: {
           token:
-            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2ODY4OTllNDBmN2E0Mjk2ZWJjZjBjNSIsImlhdCI6MTcyMDA5MzM3NCwiZXhwIjoxNzIwMTAwNTc0fQ.yVbsI0jsQgRwameRXzzRYm4IMF_AfPS5ctz09yj58Qk", // Replace with the user's JWT token
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY2ODY5YzcxZmRjOGU1NmZiYzdhMGM3MyIsImlhdCI6MTcyMDA5ODA0NywiZXhwIjoxNzIwMTA1MjQ3fQ.sr31OwC2S_BqtufLHqwryjBxlOjlgjo5IOee212Fzp8", // Replace with the user's JWT token
         },
       });
 
@@ -160,7 +160,7 @@
       }
 
       function sendFriendRequest() {
-        const receiverId = "666c3252c67c60e34fcaa136";
+        const receiverId = "6686899e40f7a4296ebcf0c5";
         if (receiverId) {
           socket.emit("sendFriendRequest", receiverId);
         }
