@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const UserSchema = mongoose.Schema({
   fullname: {
     type: String,
-    required: [true, "Fullname is required"],
+    // required: [true, "Fullname is required"],
   },
   phoneNumber: {
     type: String,
@@ -14,7 +14,7 @@ const UserSchema = mongoose.Schema({
   //   required: [true, "Password is required"],
   //   minLength: [6, "password must be at least 6 characters"],
   // },
-  profileImage: {
+  profile: {
     type: String,
     required: false,
     default: "", // Initially empty

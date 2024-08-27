@@ -438,16 +438,16 @@ const port = process.env.PORT;
 databaseConnection();
 
 //start server
-server.listen(5000, () => {
+server.listen(3000, () => {
   console.log("prot===>", port);
   console.log("server is listning on port 5000");
 });
 
 // user Routes
 const userRoute = require("./Routes/UserRoutes");
-app.use("/api/v1", userRoute);
+app.use("/users", userRoute);
 
 // friend Request routes
 const friendRequest = require("./Routes/FriendRequestRoute");
 const { friends } = require("./Controllar/UserControllar");
-app.use("/api/v1", friendRequest);
+// app.use("/api/v1", friendRequest);
